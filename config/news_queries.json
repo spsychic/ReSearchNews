@@ -1,0 +1,25 @@
+{
+  "queries": [
+    {
+      "id": "macro_kr",
+      "label": "국내 경제",
+      "query": "한국 경제 금리 환율 증시"
+    },
+    {
+      "id": "us_market",
+      "label": "미국장",
+      "query": "미국 증시 나스닥 S&P500 금리 달러"
+    },
+    {
+      "id": "gold",
+      "label": "금",
+      "query": "금 가격 달러 미국채 금리 안전자산"
+    },
+    {
+      "id": "real_estate",
+      "label": "부동산",
+      "query": "부동산 정책 주택시장 실거래 전세 대출"
+    }
+  ],
+  "max_items_per_query": 8
+}

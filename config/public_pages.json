@@ -1,0 +1,29 @@
+{
+  "pages": [
+    {
+      "id": "krx",
+      "label": "KRX 정보데이터시스템",
+      "url": "https://data.krx.co.kr"
+    },
+    {
+      "id": "naver_finance",
+      "label": "네이버 금융 국내증시",
+      "url": "https://finance.naver.com/sise/"
+    },
+    {
+      "id": "molit_real_trade",
+      "label": "국토교통부 실거래가 공개시스템",
+      "url": "https://rt.molit.go.kr"
+    },
+    {
+      "id": "reb_rone",
+      "label": "한국부동산원 R-ONE",
+      "url": "https://www.reb.or.kr/r-one/"
+    },
+    {
+      "id": "molit_policy",
+      "label": "국토교통부 정책자료",
+      "url": "https://www.molit.go.kr"
+    }
+  ]
+}

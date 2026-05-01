@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated runtime data
+data/actual_daily_payload.json
+data/kr_market_snapshot.json
+data/market_snapshot.json
+data/molit_public_info.json
+data/news_analysis.json
+data/news_snapshot.json
+data/public_page_probe.json
+data/rone_dashboard.json
+output/
+
+# Keep generated Pages output optional locally; GitHub Actions regenerates it.
+public/index.html

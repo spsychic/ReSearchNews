@@ -1,0 +1,45 @@
+{
+  "timezone": "Asia/Seoul",
+  "jobs": [
+    {
+      "name": "forecast_0600",
+      "time": "06:00",
+      "description": "전날 및 기존 누적 자료 기반 사전 예측 리포트 생성"
+    },
+    {
+      "name": "comparison_0700",
+      "time": "07:00",
+      "description": "신규 뉴스와 6시 예측 비교, 1차 분석 생성"
+    },
+    {
+      "name": "pre_open_0830",
+      "time": "08:30",
+      "description": "국내 장 시작 전 프리뷰 업데이트"
+    },
+    {
+      "name": "market_open_0910",
+      "time": "09:10",
+      "description": "국장 시초가와 초반 변동폭 반영"
+    },
+    {
+      "name": "midday_1200",
+      "time": "12:00",
+      "description": "오전장 중간 점검"
+    },
+    {
+      "name": "market_close_1540",
+      "time": "15:40",
+      "description": "국장 마감 데이터 반영"
+    },
+    {
+      "name": "final_1600",
+      "time": "16:00",
+      "description": "부동산/정책/금 포함 최종 리포트 생성"
+    },
+    {
+      "name": "delivery_1700",
+      "time": "17:00",
+      "description": "웹 링크/텔레그램/이메일 발송"
+    }
+  ]
+}
