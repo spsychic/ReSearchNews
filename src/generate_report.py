@@ -15,7 +15,7 @@ def render_source_urls(urls):
     for url in urls:
         safe_url = esc(url)
         links.append(f'<li><a href="{safe_url}" target="_blank" rel="noreferrer">{safe_url}</a></li>')
-    return '<ul class="sources">' + ''.join(links) + '</ul>'
+    return '<div class="source-scroll"><ul class="sources">' + ''.join(links) + '</ul></div>'
 
 
 def render_list(items):
@@ -179,10 +179,53 @@ def render_report(payload):
     .lead {{
       border-left: 4px solid var(--accent);
       display: grid;
-      gap: 12px;
+      gap: 6px;
       position: sticky;
       top: 0;
       z-index: 2;
+      padding: 12px 14px;
+      box-shadow: 0 8px 20px rgba(23, 32, 38, 0.07);
+    }}
+    .lead h2 {{
+      font-size: 16px;
+      line-height: 1.35;
+    }}
+    .lead h3 {{
+      margin: 6px 0 4px;
+      font-size: 12px;
+    }}
+    .lead .badge {{
+      min-height: 24px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }}
+    .lead .metrics {{
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 4px;
+    }}
+    .lead .metric {{
+      min-height: 58px;
+      padding: 7px 8px;
+    }}
+    .lead .metric-label {{
+      font-size: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .lead .metric-value {{
+      margin-top: 2px;
+      font-size: 15px;
+    }}
+    .lead .metric-note {{
+      margin-top: 2px;
+      font-size: 10px;
+      line-height: 1.25;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }}
     .section-head {{
       display: flex;
@@ -304,6 +347,25 @@ def render_report(payload):
       word-break: break-all;
       font-size: 13px;
     }}
+    .source-scroll {{
+      max-height: 112px;
+      overflow: auto;
+      resize: vertical;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfc;
+      padding: 8px 10px;
+      overscroll-behavior: contain;
+    }}
+    .lead .source-scroll {{
+      max-height: 58px;
+      min-height: 34px;
+      padding: 5px 8px;
+    }}
+    .lead .sources {{
+      font-size: 11px;
+    }}
     a {{
       color: #155c8a;
     }}
@@ -318,6 +380,7 @@ def render_report(payload):
       .grid {{ grid-template-columns: 1fr; }}
       .review-grid {{ grid-template-columns: 1fr; }}
       .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .lead .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       h1 {{ font-size: 25px; }}
       .section-head {{ flex-direction: column; }}
       .badge {{ align-self: flex-start; }}
