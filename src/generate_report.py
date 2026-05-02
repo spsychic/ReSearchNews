@@ -15,7 +15,13 @@ def render_source_urls(urls):
     for url in urls:
         safe_url = esc(url)
         links.append(f'<li><a href="{safe_url}" target="_blank" rel="noreferrer">{safe_url}</a></li>')
-    return '<div class="source-scroll"><ul class="sources">' + ''.join(links) + '</ul></div>'
+    return (
+        f'<details class="source-details">'
+        f'<summary>출처 보기 <span>{len(urls)}</span></summary>'
+        f'<div class="source-scroll"><ul class="sources">'
+        + ''.join(links)
+        + '</ul></div></details>'
+    )
 
 
 def render_list(items):
@@ -187,17 +193,19 @@ def render_report(payload):
       box-shadow: 0 8px 20px rgba(23, 32, 38, 0.07);
     }}
     .lead h2 {{
-      font-size: 16px;
+      font-size: 13px;
       line-height: 1.35;
+      font-weight: 600;
+      color: var(--muted);
     }}
     .lead h3 {{
       margin: 6px 0 4px;
       font-size: 12px;
     }}
     .lead .badge {{
-      min-height: 24px;
+      min-height: 22px;
       padding: 2px 8px;
-      font-size: 12px;
+      font-size: 11px;
     }}
     .lead .metrics {{
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -350,7 +358,6 @@ def render_report(payload):
     .source-scroll {{
       max-height: 112px;
       overflow: auto;
-      resize: vertical;
       min-height: 42px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -358,10 +365,67 @@ def render_report(payload):
       padding: 8px 10px;
       overscroll-behavior: contain;
     }}
+    .source-details {{
+      margin-top: 6px;
+    }}
+    .source-details summary {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 30px;
+      padding: 4px 10px;
+      border: 1px solid rgba(15, 111, 115, 0.24);
+      border-radius: 999px;
+      background: #f4faf9;
+      color: #164c50;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }}
+    .source-details summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .source-details summary::before {{
+      content: "+";
+      display: inline-grid;
+      place-items: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      line-height: 1;
+    }}
+    .source-details[open] summary::before {{
+      content: "-";
+    }}
+    .source-details summary span {{
+      color: var(--muted);
+      font-weight: 600;
+    }}
+    .source-details[open] .source-scroll {{
+      margin-top: 8px;
+    }}
     .lead .source-scroll {{
       max-height: 58px;
       min-height: 34px;
       padding: 5px 8px;
+    }}
+    .lead .source-details {{
+      margin-top: 0;
+    }}
+    .lead .source-details summary {{
+      min-height: 24px;
+      padding: 2px 8px;
+      font-size: 11px;
+    }}
+    .lead .source-details summary::before {{
+      width: 14px;
+      height: 14px;
+      font-size: 10px;
     }}
     .lead .sources {{
       font-size: 11px;
