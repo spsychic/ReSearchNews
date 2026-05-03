@@ -55,6 +55,45 @@ def render_metrics(metrics):
     return '<section class="metrics">' + ''.join(cards) + '</section>'
 
 
+def render_charts(charts):
+    if not charts:
+        return ""
+    cards = []
+    for chart in charts:
+        image_url = esc(chart.get("image_url", ""))
+        source_url = esc(chart.get("source_url", ""))
+        cards.append(f"""
+        <article class="chart-card">
+          <div class="chart-head">
+            <strong>{esc(chart.get("title", ""))}</strong>
+            <a href="{source_url}" target="_blank" rel="noreferrer">원본</a>
+          </div>
+          <img src="{image_url}" alt="{esc(chart.get("title", ""))}">
+          <p>{esc(chart.get("caption", ""))}</p>
+        </article>
+        """)
+    return '<section class="chart-board">' + ''.join(cards) + '</section>'
+
+
+def render_insight_cards(cards):
+    if not cards:
+        return ""
+    rows = []
+    for card in cards:
+        rows.append(f"""
+        <article class="insight-card">
+          <div class="insight-title">{esc(card.get("title", ""))}</div>
+          <div class="insight-signal">{esc(card.get("signal", ""))}</div>
+          <dl>
+            <dt>근거</dt><dd>{esc(card.get("evidence", ""))}</dd>
+            <dt>시사점</dt><dd>{esc(card.get("implication", ""))}</dd>
+            <dt>확인할 것</dt><dd>{esc(card.get("watch", ""))}</dd>
+          </dl>
+        </article>
+        """)
+    return '<section class="insight-grid">' + ''.join(rows) + '</section>'
+
+
 def render_review_items(items):
     if not items:
         return ""
@@ -294,6 +333,80 @@ def render_report(payload):
       color: var(--muted);
       font-size: 12px;
     }}
+    .chart-board {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }}
+    .chart-card {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }}
+    .chart-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }}
+    .chart-head a {{
+      font-size: 12px;
+    }}
+    .chart-card img {{
+      display: block;
+      width: 100%;
+      min-height: 120px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }}
+    .chart-card p {{
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }}
+    .insight-grid {{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin: 10px 0 12px;
+    }}
+    .insight-card {{
+      border: 1px solid #d7e2e1;
+      border-radius: 8px;
+      background: #fbfdfd;
+      padding: 12px;
+    }}
+    .insight-title {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .insight-signal {{
+      margin-top: 3px;
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 700;
+    }}
+    .insight-card dl {{
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 5px 8px;
+      margin: 9px 0 0;
+      font-size: 13px;
+    }}
+    .insight-card dt {{
+      color: var(--muted);
+      font-weight: 700;
+    }}
+    .insight-card dd {{
+      margin: 0;
+    }}
     .news-list {{
       display: grid;
       gap: 8px;
@@ -442,6 +555,7 @@ def render_report(payload):
     }}
     @media (max-width: 760px) {{
       .grid {{ grid-template-columns: 1fr; }}
+      .chart-board {{ grid-template-columns: 1fr; }}
       .review-grid {{ grid-template-columns: 1fr; }}
       .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .lead .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
@@ -478,6 +592,8 @@ def render_report(payload):
       {render_source_urls(payload["summary"].get("source_urls", []))}
     </section>
 
+    {render_charts(payload["summary"].get("charts", []))}
+
     <div class="grid">
       <section class="panel" id="forecast">
         <div class="section-head">
@@ -486,8 +602,9 @@ def render_report(payload):
         </div>
         <h3>예측 근거</h3>
         {render_list(forecast.get("basis", []))}
-        <h3>첫 예측</h3>
-        <p>{esc(forecast.get("prediction", ""))}</p>
+        <h3>오늘의 판단 카드</h3>
+        {render_insight_cards(forecast.get("insight_cards", []))}
+        <details class="source-details forecast-raw"><summary>원문형 데이터 요약 <span>보기</span></summary><p>{esc(forecast.get("prediction", ""))}</p></details>
         <h3>체크포인트</h3>
         {render_list(forecast.get("watch_points", []))}
         <h3>출처 URL</h3>

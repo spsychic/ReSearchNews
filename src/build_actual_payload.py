@@ -39,6 +39,88 @@ def quote_line(quote, pct_key="open_change_pct"):
     return f"{quote.get('label')} {fmt_number(quote.get('close'))}, 시가 대비 {fmt_pct(quote.get(pct_key))}"
 
 
+def market_charts():
+    return [
+        {
+            "title": "KOSPI 일중 차트",
+            "caption": "네이버 금융 공개 차트 이미지",
+            "image_url": "https://ssl.pstatic.net/imgfinance/chart/sise/siseMainKOSPI.png",
+            "source_url": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+        },
+        {
+            "title": "KOSDAQ 일중 차트",
+            "caption": "네이버 금융 공개 차트 이미지",
+            "image_url": "https://ssl.pstatic.net/imgfinance/chart/sise/siseMainKOSDAQ.png",
+            "source_url": "https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ",
+        },
+    ]
+
+
+def strongest_weakest(quotes, pct_key):
+    valid = [item for item in quotes if item.get(pct_key) is not None]
+    if not valid:
+        return None, None
+    ranked = sorted(valid, key=lambda item: item[pct_key], reverse=True)
+    return ranked[0], ranked[-1]
+
+
+def format_signal_item(item, pct_key):
+    if not item:
+        return "N/A"
+    return f"{item.get('label')} {fmt_pct(item.get(pct_key))}"
+
+
+def build_forecast_cards(us_quotes, kr_indexes, gold, usdkrw, news_analysis):
+    cards = []
+    us_best, us_worst = strongest_weakest(us_quotes, "open_change_pct")
+    if us_quotes:
+        us_up = len([quote for quote in us_quotes if (quote.get("open_change_pct") or 0) > 0])
+        us_down = len([quote for quote in us_quotes if (quote.get("open_change_pct") or 0) < 0])
+        if us_up and us_down:
+            signal = "미국장 혼조"
+            implication = "지수 전체 방향보다 어떤 지수가 버티는지 확인해야 합니다. NASDAQ이 상대적으로 강하면 성장주, Dow가 약하면 경기민감주 부담으로 나눠 봅니다."
+        elif us_up:
+            signal = "미국장 상승 우위"
+            implication = "미국장 자체는 위험선호 쪽입니다. 국내장에서는 반도체/성장주가 이를 받아내는지 확인합니다."
+        else:
+            signal = "미국장 하락 우위"
+            implication = "국내장 초반에는 방어적 해석이 우선입니다. 환율과 외국인 수급을 같이 봐야 합니다."
+        cards.append({
+            "title": "1. 미국장이 남긴 신호",
+            "signal": signal,
+            "evidence": f"가장 강한 지수: {format_signal_item(us_best, 'open_change_pct')} / 가장 약한 지수: {format_signal_item(us_worst, 'open_change_pct')}",
+            "implication": implication,
+            "watch": "KOSPI 대형주, 반도체, 외국인 순매수",
+        })
+
+    if kr_indexes or usdkrw:
+        kr_best, kr_worst = strongest_weakest(kr_indexes, "change_pct")
+        kr_weak = len([index for index in kr_indexes if (index.get("change_pct") or 0) < 0])
+        usdkrw_text = quote_line(usdkrw) if usdkrw else "환율 N/A"
+        signal = "국내장 약세 확인" if kr_weak else "국내장 방어 확인"
+        implication = "환율과 지수가 같은 방향으로 불안하면 위험회피가 강합니다. 지수만 약하면 국내 수급/업종 이슈를 별도로 확인해야 합니다."
+        cards.append({
+            "title": "2. 국내장이 확인해야 할 것",
+            "signal": signal,
+            "evidence": f"가장 강한 국내 지수: {format_signal_item(kr_best, 'change_pct')} / 가장 약한 국내 지수: {format_signal_item(kr_worst, 'change_pct')} / {usdkrw_text}",
+            "implication": implication,
+            "watch": "외국인 수급, 원/달러, KOSPI·KOSDAQ 동반성",
+        })
+
+    if gold or news_analysis:
+        news_count = (news_analysis or {}).get("recent_article_count", 0)
+        gold_text = quote_line(gold) if gold else "금 N/A"
+        signal = "헤지 수요 점검" if gold and (gold.get("open_change_pct") or 0) > 0 else "헤지 수요 약화 또는 중립"
+        cards.append({
+            "title": "3. 리스크 변수",
+            "signal": signal,
+            "evidence": f"{gold_text} / 최근 뉴스 필터 통과 {news_count}건",
+            "implication": "금, 환율, 뉴스가 같은 방향으로 움직일 때만 강한 위험회피 신호로 봅니다. 하나만 움직이면 보조 신호로 취급합니다.",
+            "watch": "금, 원/달러, 유가·금리 뉴스",
+        })
+    return cards
+
+
 def market_summary_from_quotes(us_quotes):
     if not us_quotes:
         return "미국장 데이터가 수집되지 않았습니다."
@@ -214,6 +296,22 @@ def build_us_review(us_quotes):
     }]
 
 
+def us_detail_items(us_quotes, gold, usdkrw):
+    if not us_quotes:
+        return []
+    best, worst = strongest_weakest(us_quotes, "open_change_pct")
+    items = [
+        f"지수 강도: {format_signal_item(best, 'open_change_pct')}가 가장 강하고, {format_signal_item(worst, 'open_change_pct')}가 가장 약합니다.",
+        "해석 순서: 세 지수가 같은 방향이면 시장 전체 심리, 엇갈리면 성장주와 경기민감주의 차이를 먼저 봅니다.",
+    ]
+    if gold:
+        items.append(f"금 동조 확인: {quote_line(gold)}")
+    if usdkrw:
+        items.append(f"달러/원화 확인: {quote_line(usdkrw)}")
+    items.append("한국장 연결: NASDAQ 강세는 성장주/반도체에 우호적일 수 있고, Dow 약세는 경기민감 업종 부담으로 볼 수 있습니다.")
+    return items
+
+
 def build_gold_review(gold, usdkrw):
     if not gold:
         return []
@@ -372,6 +470,7 @@ def main():
     payload["summary"]["headline"] = "실제 시장 스냅샷과 뉴스 흐름을 반영한 1차 데이터 분석 리포트입니다."
     payload["summary"]["stance"] = "데이터 반영"
     payload["summary"]["metrics"] = [quote_metric(q) for q in snapshot["quotes"]]
+    payload["summary"]["charts"] = market_charts()
     payload["summary"]["source_urls"] = sorted({q["source_url"] for q in snapshot["quotes"]})
     if news_analysis:
         payload["summary"]["source_urls"] = sorted(set(payload["summary"]["source_urls"]) | set(news_analysis.get("source_urls", [])))
@@ -389,24 +488,20 @@ def main():
     gold = quotes.get("gold")
     usdkrw = quotes.get("usdkrw")
 
+    kr_indexes = (kr_market or {}).get("indexes", [])
     payload["forecast_0600"]["prediction"] = " ".join([
         market_summary_from_quotes(us_quotes),
-        kr_summary_from_data((kr_market or {}).get("indexes", []), usdkrw),
+        kr_summary_from_data(kr_indexes, usdkrw),
         gold_summary_from_data(gold, usdkrw),
     ])
+    payload["forecast_0600"]["insight_cards"] = build_forecast_cards(us_quotes, kr_indexes, gold, usdkrw, news_analysis)
     payload["forecast_0600"]["source_urls"] = payload["summary"]["source_urls"]
 
-    payload["comparison_0700"]["status"] = "초기 데이터 반영"
-    if news_analysis:
-        payload["comparison_0700"]["analysis"] = (
-            "오전 7시 비교 분석은 6시 예측에 실제 시세 스냅샷과 공개 뉴스 RSS를 겹쳐 보는 방식으로 구성했습니다. "
-            + news_analysis.get("interpretation", "")
-        )
-    else:
-        payload["comparison_0700"]["analysis"] = (
-            "현재는 API 키 없이 수집 가능한 Stooq 지연 시세를 기반으로 6시 예측의 방향성을 점검했습니다. "
-            "공개 페이지 브라우저 수집이 연결되면 7시 신규 기사와 공식자료까지 포함해 예측 수정 여부를 판정합니다."
-        )
+    payload["comparison_0700"]["status"] = "반영 예정"
+    payload["comparison_0700"]["analysis"] = (
+        "오전 7시 1차 비교 분석은 6시 예측 이후 새로 들어온 뉴스와 국내 장전 지표를 따로 저장한 뒤 비교해야 합니다. "
+        "현재 파이프라인은 6시·7시 데이터를 별도 히스토리로 분리 저장하지 않으므로, 이 영역은 다음 단계에서 반영합니다."
+    )
     payload["comparison_0700"]["changed_points"] = [
         "시가 대비 등락률 기준으로 미국장 내부 강도 확인",
         "금 가격과 원/달러 환율을 함께 배치해 위험회피 여부 확인",
@@ -427,6 +522,7 @@ def main():
             section["status"] = "실제 데이터 반영"
             section["body"] = market_summary_from_quotes(us_quotes)
             section["metrics"] = [quote_metric(q) for q in us_quotes]
+            section["items"] = us_detail_items(us_quotes, gold, usdkrw)
             section["review_items"] = build_us_review(us_quotes)
             section["source_urls"] = [q["source_url"] for q in us_quotes]
         elif section["id"] == "gold" and gold:
