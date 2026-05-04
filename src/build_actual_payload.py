@@ -39,6 +39,153 @@ def quote_line(quote, pct_key="open_change_pct"):
     return f"{quote.get('label')} {fmt_number(quote.get('close'))}, 시가 대비 {fmt_pct(quote.get(pct_key))}"
 
 
+def read_json(path, default=None):
+    path = Path(path)
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return default
+
+
+def parse_number(value):
+    if value is None:
+        return None
+    try:
+        return float(str(value).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def metric_by_label(metrics):
+    return {metric.get("label"): metric for metric in metrics if metric.get("label")}
+
+
+def compare_metric_line(label, previous_metric, current_metric):
+    previous_value = parse_number((previous_metric or {}).get("value"))
+    current_value = parse_number((current_metric or {}).get("value"))
+    if previous_value is None or current_value is None:
+        return f"{label}: 비교 가능한 수치가 부족합니다."
+    diff = current_value - previous_value
+    diff_pct = (diff / previous_value * 100) if previous_value else 0
+    sign = "+" if diff > 0 else ""
+    previous_note = (previous_metric or {}).get("note", "")
+    current_note = (current_metric or {}).get("note", "")
+    return (
+        f"{label}: 06시 {previous_value:,.2f}에서 현재 {current_value:,.2f}로 "
+        f"{sign}{diff:,.2f}({sign}{diff_pct:.2f}%) 변화했습니다. "
+        f"06시 근거: {previous_note} / 현재 근거: {current_note}"
+    )
+
+
+def judge_forecast_card(card, previous_metrics, current_metrics):
+    title = card.get("title", "06시 예측")
+    signal = card.get("signal", "")
+    evidence = card.get("evidence", "")
+    watch = card.get("watch", "")
+    label_map = {
+        "미국": ["S&P 500", "NASDAQ 100", "Dow Jones"],
+        "국내": ["KOSPI", "KOSDAQ", "USD/KRW"],
+        "리스크": ["Gold Futures", "USD/KRW"],
+    }
+    labels = []
+    for key, values in label_map.items():
+        if key in title or key in signal or key in watch:
+            labels.extend(values)
+    if not labels:
+        labels = ["S&P 500", "NASDAQ 100", "Dow Jones", "Gold Futures", "USD/KRW"]
+    lines = []
+    movement_scores = []
+    for label in dict.fromkeys(labels):
+        prev_metric = previous_metrics.get(label)
+        current_metric = current_metrics.get(label)
+        if prev_metric and current_metric:
+            lines.append(compare_metric_line(label, prev_metric, current_metric))
+            prev_value = parse_number(prev_metric.get("value"))
+            current_value = parse_number(current_metric.get("value"))
+            if prev_value is not None and current_value is not None:
+                movement_scores.append(abs((current_value - prev_value) / prev_value) if prev_value else 0)
+    if not lines:
+        verdict = "검증 보류"
+        review = "06시 예측과 현재 데이터 사이에 직접 비교할 수 있는 지표가 부족합니다."
+    else:
+        max_move = max(movement_scores) if movement_scores else 0
+        if max_move >= 0.01:
+            verdict = "판단 수정 필요"
+            review = "06시 예측 이후 핵심 지표 변화가 커졌습니다. 기존 방향을 그대로 유지하기보다 현재 수치 기준으로 강도와 리스크를 다시 잡아야 합니다."
+        elif max_move >= 0.003:
+            verdict = "부분 조정"
+            review = "06시 방향성은 유지할 수 있지만, 일부 지표가 움직였기 때문에 업종별 강도와 환율·금 변수를 함께 재확인해야 합니다."
+        else:
+            verdict = "대체로 유지"
+            review = "06시 예측 이후 핵심 수치 변화가 제한적입니다. 기존 판단을 유지하되 신규 뉴스가 있는지만 추가 확인하면 됩니다."
+    return {
+        "claim": f"{title}: {signal} / 06시 근거: {evidence}",
+        "evidence": " ".join(lines) if lines else "비교 지표 없음",
+        "verdict": verdict,
+        "review": review,
+    }
+
+
+def build_history_comparison(payload, slot, history_dir):
+    if slot == "0600":
+        return {
+            "status": "06시 기준 저장",
+            "analysis": "오전 6시 자료는 오늘의 기준 예측으로 저장됩니다. 7시 이후 실행부터 이 예측과 실제 수치 변화를 비교합니다.",
+            "changed_points": [
+                "06시 예측 카드와 핵심 시장 지표를 히스토리에 저장",
+                "07시 실행 시 미국장·국내장·금·환율 지표 변화폭을 자동 비교",
+                "16시 실행 시 장중 흐름까지 반영해 예측 유지/수정 여부를 재판정",
+            ],
+            "review_items": [],
+        }
+
+    previous = read_json(Path(history_dir) / "latest" / "0600_summary.json", {})
+    previous_summary = previous.get("summary", {}) if previous else {}
+    if not previous_summary:
+        return {
+            "status": "비교 기준 없음",
+            "analysis": "저장된 06시 예측 자료가 없어 이번 실행에서는 예측 검증을 보류합니다. 다음 06시 실행 이후부터 자동 비교가 가능합니다.",
+            "changed_points": ["public/history/latest/0600_summary.json 파일이 아직 없습니다."],
+            "review_items": [],
+        }
+
+    previous_metrics = metric_by_label(previous_summary.get("market_metrics", []))
+    current_metrics = metric_by_label(payload.get("summary", {}).get("metrics", []))
+    tracked_labels = ["S&P 500", "NASDAQ 100", "Dow Jones", "Gold Futures", "USD/KRW", "KOSPI", "KOSDAQ"]
+    changed_points = [
+        compare_metric_line(label, previous_metrics.get(label), current_metrics.get(label))
+        for label in tracked_labels
+        if previous_metrics.get(label) or current_metrics.get(label)
+    ]
+    review_items = [
+        judge_forecast_card(card, previous_metrics, current_metrics)
+        for card in previous_summary.get("forecast_cards", [])
+    ]
+    if not review_items:
+        review_items = [{
+            "claim": "06시 예측 카드",
+            "evidence": "저장된 예측 카드가 없습니다.",
+            "verdict": "검증 보류",
+            "review": "핵심 지표 비교는 가능하지만 예측 문장 단위의 검증은 다음 06시 저장 이후 가능합니다.",
+        }]
+
+    verdict_counts = {}
+    for item in review_items:
+        verdict_counts[item["verdict"]] = verdict_counts.get(item["verdict"], 0) + 1
+    verdict_text = ", ".join(f"{name} {count}건" for name, count in verdict_counts.items())
+    return {
+        "status": "예측 검증 완료",
+        "analysis": (
+            f"저장된 06시 예측({previous.get('saved_at', '시간 미상')})과 현재 {slot} 실행 데이터를 비교했습니다. "
+            f"검증 결과는 {verdict_text or '검증 항목 없음'}입니다. 수치 변화가 큰 항목은 기존 방향성보다 현재 지표를 우선해 해석합니다."
+        ),
+        "changed_points": changed_points or ["비교 가능한 핵심 지표 변화가 없습니다."],
+        "review_items": review_items,
+    }
+
+
 def market_charts():
     return [
         {
@@ -444,6 +591,8 @@ def main():
     parser.add_argument("--page-probe")
     parser.add_argument("--rone")
     parser.add_argument("--molit-info")
+    parser.add_argument("--slot", default="0600", choices=("0600", "0700", "1600"))
+    parser.add_argument("--history-dir", default="public/history")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
@@ -497,17 +646,11 @@ def main():
     payload["forecast_0600"]["insight_cards"] = build_forecast_cards(us_quotes, kr_indexes, gold, usdkrw, news_analysis)
     payload["forecast_0600"]["source_urls"] = payload["summary"]["source_urls"]
 
-    payload["comparison_0700"]["status"] = "반영 예정"
-    payload["comparison_0700"]["analysis"] = (
-        "오전 7시 1차 비교 분석은 6시 예측 이후 새로 들어온 뉴스와 국내 장전 지표를 따로 저장한 뒤 비교해야 합니다. "
-        "현재 파이프라인은 6시·7시 데이터를 별도 히스토리로 분리 저장하지 않으므로, 이 영역은 다음 단계에서 반영합니다."
-    )
-    payload["comparison_0700"]["changed_points"] = [
-        "시가 대비 등락률 기준으로 미국장 내부 강도 확인",
-        "금 가격과 원/달러 환율을 함께 배치해 위험회피 여부 확인",
-        "국내장 데이터는 네이버 금융 공개 페이지와 KRX 공개 페이지 자동화로 반영",
-        "각 설명 문장은 실제 수치와 대조해 일치/부분 일치/주의 필요로 검토",
-    ]
+    history_comparison = build_history_comparison(payload, args.slot, args.history_dir)
+    payload["comparison_0700"]["status"] = history_comparison["status"]
+    payload["comparison_0700"]["analysis"] = history_comparison["analysis"]
+    payload["comparison_0700"]["changed_points"] = history_comparison["changed_points"]
+    payload["comparison_0700"]["review_items"] = history_comparison["review_items"]
     payload["comparison_0700"]["source_urls"] = payload["summary"]["source_urls"]
 
     for section in payload["sections"]:

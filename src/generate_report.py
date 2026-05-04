@@ -619,6 +619,7 @@ def render_report(payload):
         <p>{esc(comparison.get("analysis", ""))}</p>
         <h3>변경 포인트</h3>
         {render_list(comparison.get("changed_points", []))}
+        {render_review_items(comparison.get("review_items", []))}
         <h3>출처 URL</h3>
         {render_source_urls(comparison.get("source_urls", []))}
       </section>

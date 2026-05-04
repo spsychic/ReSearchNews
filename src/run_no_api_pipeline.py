@@ -2,10 +2,21 @@ import argparse
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def infer_slot():
+    hour = datetime.now(ZoneInfo("Asia/Seoul")).hour
+    if hour < 7:
+        return "0600"
+    if hour < 16:
+        return "0700"
+    return "1600"
 
 
 def run(args):
@@ -18,6 +29,7 @@ def main():
     parser.add_argument("--slot", default="auto", choices=("auto", "0600", "0700", "1600"))
     parser.add_argument("--open", action="store_true")
     args = parser.parse_args()
+    slot = infer_slot() if args.slot == "auto" else args.slot
 
     run(["src/collect_stooq_snapshot.py", "--output", "data/market_snapshot.json"])
     run(["src/collect_naver_market.py", "--output", "data/kr_market_snapshot.json"])
@@ -35,6 +47,8 @@ def main():
         "--page-probe", "data/public_page_probe.json",
         "--rone", "data/rone_dashboard.json",
         "--molit-info", "data/molit_public_info.json",
+        "--slot", slot,
+        "--history-dir", f"{args.publish_dir}/history",
         "--output", "data/actual_daily_payload.json",
     ])
     run(["src/generate_report.py", "--input", "data/actual_daily_payload.json", "--output", "output/actual_daily_report.html"])
@@ -48,7 +62,7 @@ def main():
         "--payload", "data/actual_daily_payload.json",
         "--html", "output/actual_daily_report.html",
         "--publish-dir", args.publish_dir,
-        "--slot", args.slot,
+        "--slot", slot,
     ])
 
     if args.open:
