@@ -251,6 +251,44 @@ def build_news_market_check(news_analysis, summary_metrics):
         "KOSDAQ": current_metric_direction(summary_metrics, "KOSDAQ"),
     }
 
+    def stance_summary(theme_name):
+        related = [
+            article
+            for article in top_articles
+            if theme_name in article.get("keyword_buckets", [])
+        ]
+        if not related:
+            return "방향성 분류 없음", 0
+        stance_counts = {}
+        tag_counts = {}
+        score = 0
+        for article in related:
+            signal = article.get("market_signal", {})
+            stance = signal.get("stance", "중립")
+            stance_counts[stance] = stance_counts.get(stance, 0) + 1
+            score += int(signal.get("score", 0) or 0)
+            for tag in signal.get("tags", []):
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        stances = ", ".join(f"{name} {count}건" for name, count in sorted(stance_counts.items(), key=lambda item: item[1], reverse=True))
+        tags = ", ".join(f"{name} {count}건" for name, count in sorted(tag_counts.items(), key=lambda item: item[1], reverse=True)[:3])
+        return f"{stances}; 핵심 태그: {tags}", score
+
+    def market_score_for_labels(labels):
+        score = 0
+        for label in labels:
+            direction = directions.get(label, ("자료 부족", None))[0]
+            if direction == "상승":
+                if label in ("Gold Futures", "USD/KRW"):
+                    score -= 1
+                else:
+                    score += 1
+            elif direction == "하락":
+                if label in ("Gold Futures", "USD/KRW"):
+                    score += 1
+                else:
+                    score -= 1
+        return score
+
     def metric_text(label):
         direction, metric = directions.get(label, ("자료 부족", None))
         value = metric.get("value") if metric else "N/A"
@@ -299,15 +337,29 @@ def build_news_market_check(news_analysis, summary_metrics):
             continue
         market_signal = " / ".join(metric_text(label) for label in rule["market_labels"])
         direction_values = [directions.get(label, ("자료 부족", None))[0] for label in rule["risk_labels"]]
+        news_bias, news_score = stance_summary(name)
+        market_bias = market_score_for_labels(rule["market_labels"])
         if name in ("금리", "환율", "금"):
             risk_like = "상승" in direction_values and "하락" in direction_values
-            verdict = "부분 일치" if risk_like else "추가 확인"
+            if news_score == 0:
+                verdict = "추가 확인"
+            elif (news_score > 0 and market_bias > 0) or (news_score < 0 and market_bias < 0):
+                verdict = "방향 일치"
+            elif risk_like:
+                verdict = "부분 일치"
+            else:
+                verdict = "불일치 가능"
         elif name == "증시":
             up_count = direction_values.count("상승")
             down_count = direction_values.count("하락")
-            verdict = "방향 일치" if up_count >= 2 or down_count >= 2 else "혼조"
+            if (news_score > 0 and up_count >= 2) or (news_score < 0 and down_count >= 2):
+                verdict = "방향 일치"
+            elif up_count >= 2 or down_count >= 2:
+                verdict = "시장 우위"
+            else:
+                verdict = "혼조"
         else:
-            verdict = "정성 검토"
+            verdict = "정성 검토" if news_score == 0 else ("호재 우위" if news_score > 0 else "악재 우위")
         related_titles = [
             article.get("title", "")
             for article in top_articles
@@ -315,7 +367,10 @@ def build_news_market_check(news_analysis, summary_metrics):
         ][:2]
         items.append({
             "theme": f"{name} 뉴스 {count}건",
-            "news_signal": " / ".join(related_titles) if related_titles else news_analysis.get("interpretation", ""),
+            "news_signal": (
+                f"{news_bias}. "
+                + (" / ".join(related_titles) if related_titles else news_analysis.get("interpretation", ""))
+            ),
             "market_signal": market_signal,
             "verdict": verdict,
             "analysis": rule["analysis"],
@@ -512,12 +567,18 @@ def fresh_news_summary_from_data(news_analysis):
     if count == 0:
         return f"Google News RSS 원자료 {news_analysis.get('raw_article_count', 0)}건 중 최근 36시간 필터를 통과한 기사가 없어 신규 이슈는 공란으로 둡니다."
     dominant = ", ".join(f"{item['name']} {item['count']}건" for item in news_analysis.get("dominant_buckets", []))
+    stances = ", ".join(f"{item['name']} {item['count']}건" for item in news_analysis.get("dominant_stances", []))
+    tags = ", ".join(f"{item['name']} {item['count']}건" for item in news_analysis.get("dominant_signal_tags", [])[:3])
     top = news_analysis.get("top_articles", [])
     top_line = ""
     if top:
         first = top[0]
         top_line = f" 대표 기사는 {first.get('published_at')}에 {first.get('publisher')}가 게시한 '{first.get('title')}'입니다."
-    return f"Google News RSS 원자료 {news_analysis.get('raw_article_count', 0)}건 중 최근 36시간 필터를 통과한 기사는 {count}건입니다. 반복 키워드는 {dominant or '없음'}입니다.{top_line}"
+    return (
+        f"Google News RSS 원자료 {news_analysis.get('raw_article_count', 0)}건 중 최근 36시간 필터를 통과한 기사는 {count}건입니다. "
+        f"반복 키워드는 {dominant or '없음'}이고, 제목 방향성은 {stances or '중립'}입니다. "
+        f"핵심 신호 태그는 {tags or '없음'}입니다.{top_line}"
+    )
 
 
 def index_metric(index):
@@ -714,13 +775,14 @@ def build_fresh_news_review(news_analysis):
         return []
     count = news_analysis.get("recent_article_count", 0)
     dominant = ", ".join(f"{item['name']} {item['count']}건" for item in news_analysis.get("dominant_buckets", []))
+    stances = ", ".join(f"{item['name']} {item['count']}건" for item in news_analysis.get("dominant_stances", []))
     top = news_analysis.get("top_articles", [])
     evidence = dominant or "최근 36시간 필터 기준 반복 키워드 없음"
     if top:
         evidence += " / 대표 기사: " + top[0].get("title", "")
     return [{
         "claim": "당일 신규 정보는 최근 36시간 안에 들어온 기사만 시장 판단 재료로 사용합니다.",
-        "evidence": f"원자료 {news_analysis.get('raw_article_count', 0)}건 중 최근 필터 통과 {count}건. {evidence}",
+        "evidence": f"원자료 {news_analysis.get('raw_article_count', 0)}건 중 최근 필터 통과 {count}건. 키워드: {dominant or '없음'} / 방향성: {stances or '중립'} / {evidence}",
         "verdict": "검토 완료" if count else "공란 유지",
         "review": "오래된 관련 기사는 제외하고 최근 기사만 남겼습니다. 통과 건수가 적으면 시장 판단을 과하게 바꾸지 않는 것이 맞습니다.",
     }]
