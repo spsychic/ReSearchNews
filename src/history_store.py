@@ -39,6 +39,7 @@ def summarize_payload(payload):
     return {
         "generated_at": payload.get("generated_at"),
         "summary_headline": payload.get("summary", {}).get("headline"),
+        "key_takeaways": payload.get("key_takeaways", []),
         "market_metrics": payload.get("summary", {}).get("metrics", []),
         "forecast_cards": forecast_cards,
         "fresh_news_status": by_id.get("fresh_news", {}).get("status"),

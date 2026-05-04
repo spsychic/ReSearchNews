@@ -142,6 +142,21 @@ def render_news_market_check(check):
     """
 
 
+def render_key_takeaways(items):
+    if not items:
+        return ""
+    rows = []
+    for item in items[:3]:
+        rows.append(f"""
+        <article class="takeaway-card">
+          <strong>{esc(item.get("label", ""))}</strong>
+          <p>{esc(item.get("text", ""))}</p>
+          <span>{esc(item.get("basis", ""))}</span>
+        </article>
+        """)
+    return '<section class="takeaways" aria-label="오늘의 핵심 결론">' + ''.join(rows) + '</section>'
+
+
 def render_section(section):
     status = esc(section.get("status", ""))
     return f"""
@@ -165,6 +180,7 @@ def render_report(payload):
     comparison = payload["comparison_0700"]
     sections = "\n".join(render_section(section) for section in payload.get("sections", []))
     news_market_check = render_news_market_check(payload.get("news_market_check"))
+    key_takeaways = render_key_takeaways(payload.get("key_takeaways", []))
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -306,6 +322,48 @@ def render_report(payload):
       -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
       overflow: hidden;
+    }}
+    .takeaways {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }}
+    .takeaway-card {{
+      min-height: 148px;
+      border: 1px solid #d7e2e1;
+      border-radius: 8px;
+      background: #fbfdfd;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }}
+    .takeaway-card strong {{
+      display: inline-flex;
+      min-height: 24px;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }}
+    .takeaway-card p {{
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 5;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }}
+    .takeaway-card span {{
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
     }}
     .section-head {{
       display: flex;
@@ -643,6 +701,7 @@ def render_report(payload):
       .chart-board {{ grid-template-columns: 1fr; }}
       .review-grid {{ grid-template-columns: 1fr; }}
       .cross-grid {{ grid-template-columns: 1fr; }}
+      .takeaways {{ grid-template-columns: 1fr; }}
       .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .lead .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       h1 {{ font-size: 25px; }}
@@ -677,6 +736,8 @@ def render_report(payload):
       <h3>출처 URL</h3>
       {render_source_urls(payload["summary"].get("source_urls", []))}
     </section>
+
+    {key_takeaways}
 
     {render_charts(payload["summary"].get("charts", []))}
 

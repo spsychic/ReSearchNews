@@ -394,6 +394,68 @@ def build_news_market_check(news_analysis, summary_metrics):
     }
 
 
+def build_key_takeaways(payload, us_quotes, kr_indexes, gold, usdkrw):
+    news_check = payload.get("news_market_check", {})
+    comparison = payload.get("comparison_0700", {})
+    takeaways = []
+
+    us_best, us_worst = strongest_weakest(us_quotes, "open_change_pct")
+    kr_best, kr_worst = strongest_weakest(kr_indexes, "change_pct")
+    news_items = news_check.get("items", [])
+    news_head = news_items[0] if news_items else {}
+    news_line = news_check.get("headline", "뉴스 교차검증 자료가 부족합니다.")
+    if news_head:
+        news_bias = news_head.get("news_signal", "").split(". ")[0]
+        takeaways.append({
+            "label": "뉴스와 시장",
+            "text": (
+                f"{news_head.get('theme', '뉴스')}은 {news_head.get('verdict', '검증 보류')}입니다. "
+                f"뉴스 방향성은 {news_bias or '분류 부족'}으로 요약되며, 세부 근거는 교차검증 카드에서 확인합니다."
+            ),
+            "basis": news_line,
+        })
+    else:
+        takeaways.append({
+            "label": "뉴스와 시장",
+            "text": news_line,
+            "basis": "최근 뉴스와 시장 지표 교차검증 결과",
+        })
+
+    market_parts = []
+    if us_best and us_worst:
+        market_parts.append(f"미국장은 {format_signal_item(us_best, 'open_change_pct')}가 가장 강하고 {format_signal_item(us_worst, 'open_change_pct')}가 가장 약합니다")
+    if kr_best and kr_worst:
+        market_parts.append(f"국내장은 {format_signal_item(kr_best, 'change_pct')}가 가장 강하고 {format_signal_item(kr_worst, 'change_pct')}가 가장 약합니다")
+    if usdkrw:
+        market_parts.append(f"원/달러는 {fmt_number(usdkrw.get('close'))}, 시가 대비 {fmt_pct(usdkrw.get('open_change_pct'))}입니다")
+    if market_parts:
+        takeaways.append({
+            "label": "시장 강도",
+            "text": ". ".join(market_parts) + ".",
+            "basis": "미국 지수, 국내 지수, 원/달러 환율 실측값",
+        })
+
+    risk_parts = []
+    if gold:
+        risk_parts.append(f"금은 {fmt_number(gold.get('close'))}, 시가 대비 {fmt_pct(gold.get('open_change_pct'))}")
+    if comparison.get("status"):
+        risk_parts.append(f"06시 예측 검증은 {comparison.get('status')}")
+    review_items = comparison.get("review_items", [])
+    if review_items:
+        verdicts = {}
+        for item in review_items:
+            verdicts[item.get("verdict", "검증 보류")] = verdicts.get(item.get("verdict", "검증 보류"), 0) + 1
+        risk_parts.append("예측 판정은 " + ", ".join(f"{name} {count}건" for name, count in verdicts.items()))
+    if risk_parts:
+        takeaways.append({
+            "label": "리스크 판단",
+            "text": ". ".join(risk_parts) + ".",
+            "basis": "금 가격, 환율, 06시 예측 대비 현재 데이터",
+        })
+
+    return takeaways[:3]
+
+
 def market_charts():
     return [
         {
@@ -870,6 +932,7 @@ def main():
     payload["comparison_0700"]["changed_points"] = history_comparison["changed_points"]
     payload["comparison_0700"]["review_items"] = history_comparison["review_items"]
     payload["comparison_0700"]["source_urls"] = payload["summary"]["source_urls"]
+    payload["key_takeaways"] = build_key_takeaways(payload, us_quotes, kr_indexes, gold, usdkrw)
 
     for section in payload["sections"]:
         if section["id"] == "fresh_news" and news_analysis:
