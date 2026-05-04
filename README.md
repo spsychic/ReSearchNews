@@ -107,3 +107,31 @@ git push -u origin main
 ```text
 https://<YOUR_ID>.github.io/<REPO_NAME>/
 ```
+
+## 히스토리 저장
+
+실행 결과는 Pages 배포물 안의 `public/history`에 같이 저장됩니다.
+
+```text
+public/history/
+  index.json
+  latest/
+    0600.json
+    0700.json
+    1600.json
+  2026-05-04/
+    0600/
+      payload.json
+      summary.json
+      index.html
+```
+
+GitHub Actions는 실행 시작 시 기존 Pages에 올라가 있는 `history` 파일을 다시 받아온 뒤, 새 결과를 이어서 저장합니다. 이 구조가 있어야 다음 단계인 오전 7시 비교, 전날 비교, 예측 검증을 구현할 수 있습니다.
+
+로컬에서 특정 슬롯으로 저장하려면:
+
+```powershell
+python .\src\run_no_api_pipeline.py --publish-dir public --slot 0600
+python .\src\run_no_api_pipeline.py --publish-dir public --slot 0700
+python .\src\run_no_api_pipeline.py --publish-dir public --slot 1600
+```

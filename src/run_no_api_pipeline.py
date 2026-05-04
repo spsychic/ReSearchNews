@@ -15,6 +15,7 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--publish-dir", default="public")
+    parser.add_argument("--slot", default="auto", choices=("auto", "0600", "0700", "1600"))
     parser.add_argument("--open", action="store_true")
     args = parser.parse_args()
 
@@ -42,6 +43,13 @@ def main():
     publish_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "output/actual_daily_report.html", publish_dir / "index.html")
     (publish_dir / ".nojekyll").touch()
+    run([
+        "src/history_store.py",
+        "--payload", "data/actual_daily_payload.json",
+        "--html", "output/actual_daily_report.html",
+        "--publish-dir", args.publish_dir,
+        "--slot", args.slot,
+    ])
 
     if args.open:
         import os

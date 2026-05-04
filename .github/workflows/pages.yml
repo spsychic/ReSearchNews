@@ -37,6 +37,18 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
+      - name: Restore published history
+        continue-on-error: true
+        run: |
+          mkdir -p public/history/latest
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/index.json" -o public/history/index.json || true
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/latest/0600.json" -o public/history/latest/0600.json || true
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/latest/0700.json" -o public/history/latest/0700.json || true
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/latest/1600.json" -o public/history/latest/1600.json || true
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/latest/0600_summary.json" -o public/history/latest/0600_summary.json || true
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/latest/0700_summary.json" -o public/history/latest/0700_summary.json || true
+          curl -fsSL "https://spsychic.github.io/ReSearchNews/history/latest/1600_summary.json" -o public/history/latest/1600_summary.json || true
+
       - name: Build report
         run: |
           python src/run_no_api_pipeline.py --publish-dir public

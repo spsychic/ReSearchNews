@@ -15,3 +15,4 @@ output/
 
 # Keep generated Pages output optional locally; GitHub Actions regenerates it.
 public/index.html
+public/history/
