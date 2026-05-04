@@ -25,8 +25,25 @@ def parse_dt(value):
         return None
 
 
-def fetch_query(query):
-    url = RSS_URL.format(query=urllib.parse.quote(query))
+def parse_sort_dt(value):
+    if not value:
+        return datetime.min.replace(tzinfo=ZoneInfo("Asia/Seoul"))
+    try:
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=ZoneInfo("Asia/Seoul"))
+    except ValueError:
+        return datetime.min.replace(tzinfo=ZoneInfo("Asia/Seoul"))
+
+
+def build_search_query(query, recency):
+    parts = [query.strip()]
+    if recency:
+        parts.append(recency.strip())
+    return " ".join(part for part in parts if part)
+
+
+def fetch_query(query, recency=None):
+    search_query = build_search_query(query, recency)
+    url = RSS_URL.format(query=urllib.parse.quote(search_query))
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(request, timeout=20) as response:
         xml_text = response.read().decode("utf-8")
@@ -47,12 +64,39 @@ def fetch_query(query):
     return items
 
 
-def dedupe_articles(groups, max_items_per_query):
+def normalize_title(title):
+    title = clean_text(title).lower()
+    for sep in (" - ", " | ", " : "):
+        if sep in title:
+            title = title.split(sep)[0]
+    return title
+
+
+def should_exclude(article, exclude_keywords):
+    title = article.get("title", "").lower()
+    return any(keyword.lower() in title for keyword in exclude_keywords)
+
+
+def article_rank(article):
+    published = parse_sort_dt(article.get("published_at"))
+    priority = int(article.get("query_priority", 0))
+    freshness = published.timestamp()
+    title = article.get("title", "")
+    market_bonus = 0
+    for word in ("마감", "개장", "장중", "속보", "환율", "금리", "나스닥", "코스피", "외국인", "미국장"):
+        if word.lower() in title.lower():
+            market_bonus += 1
+    return (priority, market_bonus, freshness)
+
+
+def dedupe_articles(groups, max_items_per_query, exclude_keywords):
     seen = set()
     articles = []
     for group in groups:
-        for article in group["articles"][:max_items_per_query]:
-            key = (article["title"], article["publisher"])
+        group_articles = [article for article in group["articles"] if not should_exclude(article, exclude_keywords)]
+        group_articles = sorted(group_articles, key=article_rank, reverse=True)
+        for article in group_articles[:max_items_per_query]:
+            key = (normalize_title(article["title"]), article["publisher"])
             if key in seen:
                 continue
             seen.add(key)
@@ -71,13 +115,21 @@ def main():
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     max_items = int(config.get("max_items_per_query", 8))
+    exclude_keywords = config.get("exclude_title_keywords", [])
     groups = []
     for query in config["queries"]:
-        articles = fetch_query(query["query"])
+        recency = query.get("recency")
+        articles = fetch_query(query["query"], recency)
+        priority = int(query.get("priority", 0))
+        for article in articles:
+            article["query_priority"] = priority
         groups.append({
             "id": query["id"],
             "label": query["label"],
             "query": query["query"],
+            "recency": recency,
+            "priority": priority,
+            "effective_query": build_search_query(query["query"], recency),
             "articles": articles,
         })
 
@@ -86,8 +138,9 @@ def main():
         "collected_at": now,
         "timezone": "Asia/Seoul",
         "provider": "Google News RSS",
+        "exclude_title_keywords": exclude_keywords,
         "groups": groups,
-        "articles": dedupe_articles(groups, max_items),
+        "articles": dedupe_articles(groups, max_items, exclude_keywords),
     }
 
     output_path = Path(args.output)

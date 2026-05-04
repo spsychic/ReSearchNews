@@ -785,13 +785,15 @@ def main():
             molit_info["molit"]["source_url"],
             molit_info["real_trade"]["source_url"],
         })
-    payload["news_market_check"] = build_news_market_check(news_analysis, payload["summary"].get("metrics", []))
 
     us_quotes = [quotes[key] for key in ("spx", "nasdaq", "dow") if key in quotes]
     gold = quotes.get("gold")
     usdkrw = quotes.get("usdkrw")
 
     kr_indexes = (kr_market or {}).get("indexes", [])
+    cross_check_metrics = list(payload["summary"].get("metrics", []))
+    cross_check_metrics.extend(index_metric(row) for row in kr_indexes)
+    payload["news_market_check"] = build_news_market_check(news_analysis, cross_check_metrics)
     payload["forecast_0600"]["prediction"] = " ".join([
         market_summary_from_quotes(us_quotes),
         kr_summary_from_data(kr_indexes, usdkrw),

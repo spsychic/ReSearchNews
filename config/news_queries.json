@@ -1,25 +1,69 @@
 {
   "queries": [
     {
-      "id": "macro_kr",
-      "label": "국내 경제",
-      "query": "한국 경제 금리 환율 증시"
+      "id": "kr_market_open",
+      "label": "국내장 개장",
+      "query": "코스피 코스닥 외국인 수급 환율",
+      "recency": "when:2d",
+      "priority": 9
     },
     {
-      "id": "us_market",
-      "label": "미국장",
-      "query": "미국 증시 나스닥 S&P500 금리 달러"
+      "id": "kr_macro",
+      "label": "국내 매크로",
+      "query": "한국 경제 금리 환율 물가 채권",
+      "recency": "when:2d",
+      "priority": 7
+    },
+    {
+      "id": "us_market_close",
+      "label": "미국장 마감",
+      "query": "미국 증시 마감 나스닥 S&P500 다우",
+      "recency": "when:2d",
+      "priority": 10
+    },
+    {
+      "id": "fed_rates",
+      "label": "연준·금리",
+      "query": "연준 Fed FOMC 미국채 금리 달러",
+      "recency": "when:2d",
+      "priority": 8
     },
     {
       "id": "gold",
       "label": "금",
-      "query": "금 가격 달러 미국채 금리 안전자산"
+      "query": "금 가격 금값 달러 미국채 안전자산",
+      "recency": "when:2d",
+      "priority": 7
     },
     {
-      "id": "real_estate",
-      "label": "부동산",
-      "query": "부동산 정책 주택시장 실거래 전세 대출"
+      "id": "real_estate_market",
+      "label": "부동산 시장",
+      "query": "부동산 주택시장 실거래 전세 매매 대출",
+      "recency": "when:7d",
+      "priority": 6
+    },
+    {
+      "id": "real_estate_policy",
+      "label": "부동산 정책",
+      "query": "국토교통부 부동산 정책 주택공급 규제 완화",
+      "recency": "when:7d",
+      "priority": 6
+    },
+    {
+      "id": "breaking_macro",
+      "label": "속보 매크로",
+      "query": "속보 경제 증시 환율 금리",
+      "recency": "when:1d",
+      "priority": 10
     }
   ],
-  "max_items_per_query": 8
+  "max_items_per_query": 10,
+  "exclude_title_keywords": [
+    "무엇인가",
+    "뜻",
+    "개념",
+    "기초",
+    "용어",
+    "하는 법"
+  ]
 }

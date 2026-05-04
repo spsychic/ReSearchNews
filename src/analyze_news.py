@@ -16,6 +16,9 @@ KEYWORDS = {
 }
 
 
+MARKET_TERMS = ["마감", "개장", "장중", "속보", "환율", "금리", "나스닥", "코스피", "코스닥", "외국인", "미국장", "뉴욕증시"]
+
+
 def score_article(article):
     text = f"{article.get('title', '')} {article.get('publisher', '')}"
     hits = []
@@ -36,6 +39,15 @@ def is_recent(article, recent_hours):
     except ValueError:
         return False
     return published_dt >= datetime.now(ZoneInfo("Asia/Seoul")) - timedelta(hours=recent_hours)
+
+
+def article_rank(item):
+    published = item.get("published_at") or ""
+    title = item.get("title", "")
+    keyword_score = len(item.get("keyword_buckets", []))
+    market_score = sum(1 for word in MARKET_TERMS if word.lower() in title.lower())
+    priority = int(item.get("query_priority", 0))
+    return (priority, market_score, keyword_score, published)
 
 
 def main():
@@ -59,7 +71,7 @@ def main():
 
     ranked = sorted(
         enriched,
-        key=lambda item: (len(item["keyword_buckets"]), item.get("published_at") or ""),
+        key=article_rank,
         reverse=True,
     )
     top_articles = ranked[:args.limit]
