@@ -110,6 +110,38 @@ def render_review_items(items):
     return '<h3>설명-근거 검토</h3><section class="review-grid">' + ''.join(rows) + '</section>'
 
 
+def render_news_market_check(check):
+    if not check:
+        return ""
+    rows = []
+    for item in check.get("items", []):
+        rows.append(f"""
+        <article class="cross-card">
+          <div class="cross-top">
+            <strong>{esc(item.get("theme", ""))}</strong>
+            <span>{esc(item.get("verdict", ""))}</span>
+          </div>
+          <dl>
+            <dt>뉴스 신호</dt><dd>{esc(item.get("news_signal", ""))}</dd>
+            <dt>시장 신호</dt><dd>{esc(item.get("market_signal", ""))}</dd>
+            <dt>판단</dt><dd>{esc(item.get("analysis", ""))}</dd>
+          </dl>
+        </article>
+        """)
+    return f"""
+    <section class="panel cross-check">
+      <div class="section-head">
+        <h2>뉴스-시장 교차검증</h2>
+        <span class="badge">{esc(check.get("status", ""))}</span>
+      </div>
+      <p>{esc(check.get("headline", ""))}</p>
+      <section class="cross-grid">{''.join(rows)}</section>
+      <h3>출처 URL</h3>
+      {render_source_urls(check.get("source_urls", []))}
+    </section>
+    """
+
+
 def render_section(section):
     status = esc(section.get("status", ""))
     return f"""
@@ -132,6 +164,7 @@ def render_report(payload):
     forecast = payload["forecast_0600"]
     comparison = payload["comparison_0700"]
     sections = "\n".join(render_section(section) for section in payload.get("sections", []))
+    news_market_check = render_news_market_check(payload.get("news_market_check"))
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -457,6 +490,58 @@ def render_report(payload):
       margin: 0;
       font-size: 13px;
     }}
+    .cross-check {{
+      border-left: 4px solid var(--warn);
+    }}
+    .cross-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }}
+    .cross-card {{
+      border: 1px solid #e6dcc7;
+      border-radius: 8px;
+      background: #fffdf8;
+      padding: 13px;
+    }}
+    .cross-top {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }}
+    .cross-top strong {{
+      font-size: 15px;
+      line-height: 1.35;
+    }}
+    .cross-top span {{
+      display: inline-flex;
+      min-height: 24px;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f3ead8;
+      color: var(--warn);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }}
+    .cross-card dl {{
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 6px 8px;
+      margin: 0;
+      font-size: 13px;
+    }}
+    .cross-card dt {{
+      color: var(--muted);
+      font-weight: 700;
+    }}
+    .cross-card dd {{
+      margin: 0;
+    }}
     .metric-up .metric-value {{ color: var(--up); }}
     .metric-down .metric-value {{ color: var(--down); }}
     .metric-gold .metric-value {{ color: var(--gold); }}
@@ -557,6 +642,7 @@ def render_report(payload):
       .grid {{ grid-template-columns: 1fr; }}
       .chart-board {{ grid-template-columns: 1fr; }}
       .review-grid {{ grid-template-columns: 1fr; }}
+      .cross-grid {{ grid-template-columns: 1fr; }}
       .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .lead .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       h1 {{ font-size: 25px; }}
@@ -593,6 +679,8 @@ def render_report(payload):
     </section>
 
     {render_charts(payload["summary"].get("charts", []))}
+
+    {news_market_check}
 
     <div class="grid">
       <section class="panel" id="forecast">

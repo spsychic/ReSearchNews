@@ -48,6 +48,7 @@ def summarize_payload(payload):
         "gold_body": by_id.get("gold", {}).get("body"),
         "real_estate_body": by_id.get("real_estate", {}).get("body"),
         "policy_body": by_id.get("policy", {}).get("body"),
+        "news_market_check": payload.get("news_market_check", {}),
     }
 
 

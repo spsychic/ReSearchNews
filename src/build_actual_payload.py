@@ -186,6 +186,159 @@ def build_history_comparison(payload, slot, history_dir):
     }
 
 
+def pct_from_note(note):
+    if not note:
+        return None
+    for token in str(note).replace("·", " ").split():
+        if token.endswith("%"):
+            try:
+                return float(token.replace("%", ""))
+            except ValueError:
+                continue
+    return None
+
+
+def current_metric_direction(metrics, label):
+    metric = metric_by_label(metrics).get(label)
+    if not metric:
+        return "자료 부족", None
+    pct = pct_from_note(metric.get("note", ""))
+    if pct is None:
+        return "중립", metric
+    if pct > 0:
+        return "상승", metric
+    if pct < 0:
+        return "하락", metric
+    return "보합", metric
+
+
+def build_news_market_check(news_analysis, summary_metrics):
+    if not news_analysis:
+        return {
+            "status": "뉴스 자료 없음",
+            "headline": "뉴스와 시장 수치를 교차검증할 자료가 아직 없습니다.",
+            "items": [],
+            "source_urls": [],
+        }
+
+    buckets = news_analysis.get("dominant_buckets", [])
+    top_articles = news_analysis.get("top_articles", [])
+    recent_count = news_analysis.get("recent_article_count", 0)
+    if recent_count == 0:
+        return {
+            "status": "뉴스 공란",
+            "headline": (
+                f"Google News RSS 원자료 {news_analysis.get('raw_article_count', 0)}건 중 "
+                f"최근 {news_analysis.get('recent_hours', 36)}시간 기준 통과 기사가 없어, 시장 수치만 우선 판단합니다."
+            ),
+            "items": [{
+                "theme": "신규 뉴스",
+                "news_signal": "반복 키워드 없음",
+                "market_signal": "시장 지표 단독 판단",
+                "verdict": "검증 보류",
+                "analysis": "뉴스 근거가 부족하므로 미국장·국내장·금·환율 수치의 방향성만 리포트 본문에서 확인합니다.",
+            }],
+            "source_urls": news_analysis.get("source_urls", []),
+        }
+
+    directions = {
+        "NASDAQ 100": current_metric_direction(summary_metrics, "NASDAQ 100"),
+        "S&P 500": current_metric_direction(summary_metrics, "S&P 500"),
+        "Dow Jones": current_metric_direction(summary_metrics, "Dow Jones"),
+        "Gold Futures": current_metric_direction(summary_metrics, "Gold Futures"),
+        "USD/KRW": current_metric_direction(summary_metrics, "USD/KRW"),
+        "KOSPI": current_metric_direction(summary_metrics, "KOSPI"),
+        "KOSDAQ": current_metric_direction(summary_metrics, "KOSDAQ"),
+    }
+
+    def metric_text(label):
+        direction, metric = directions.get(label, ("자료 부족", None))
+        value = metric.get("value") if metric else "N/A"
+        note = metric.get("note") if metric else "근거 없음"
+        return f"{label} {value}({direction}, {note})"
+
+    check_rules = {
+        "금리": {
+            "market_labels": ["NASDAQ 100", "Gold Futures", "USD/KRW"],
+            "risk_labels": ["NASDAQ 100", "Gold Futures", "USD/KRW"],
+            "analysis": "금리 뉴스가 많을 때는 성장주, 금, 환율이 같은 방향으로 위험회피를 말하는지 확인해야 합니다.",
+        },
+        "환율": {
+            "market_labels": ["USD/KRW", "KOSPI", "KOSDAQ"],
+            "risk_labels": ["USD/KRW", "KOSPI", "KOSDAQ"],
+            "analysis": "환율 뉴스가 많으면 원/달러와 국내 지수의 조합이 외국인 수급 부담을 설명하는지 봅니다.",
+        },
+        "증시": {
+            "market_labels": ["NASDAQ 100", "S&P 500", "KOSPI", "KOSDAQ"],
+            "risk_labels": ["NASDAQ 100", "S&P 500", "KOSPI", "KOSDAQ"],
+            "analysis": "증시 뉴스는 미국 성장주와 국내 지수가 같은 방향으로 움직이는지 확인해야 정보 가치가 커집니다.",
+        },
+        "금": {
+            "market_labels": ["Gold Futures", "USD/KRW", "NASDAQ 100"],
+            "risk_labels": ["Gold Futures", "USD/KRW", "NASDAQ 100"],
+            "analysis": "금 뉴스는 금 가격만 보지 않고 달러와 위험자산 흐름까지 같이 봐야 안전자산 수요인지 구분됩니다.",
+        },
+        "부동산": {
+            "market_labels": ["KOSPI", "KOSDAQ", "USD/KRW"],
+            "risk_labels": ["KOSPI", "KOSDAQ", "USD/KRW"],
+            "analysis": "부동산 뉴스는 당일 주식 지수보다 정책·금리·대출 여건을 통해 후행적으로 반영될 가능성이 큽니다.",
+        },
+        "정책": {
+            "market_labels": ["KOSPI", "KOSDAQ", "USD/KRW"],
+            "risk_labels": ["KOSPI", "KOSDAQ", "USD/KRW"],
+            "analysis": "정책 뉴스는 즉시 가격보다 수급 기대와 업종별 민감도를 바꾸는지 확인해야 합니다.",
+        },
+    }
+
+    items = []
+    for bucket in buckets[:4]:
+        name = bucket.get("name")
+        count = bucket.get("count", 0)
+        rule = check_rules.get(name)
+        if not rule:
+            continue
+        market_signal = " / ".join(metric_text(label) for label in rule["market_labels"])
+        direction_values = [directions.get(label, ("자료 부족", None))[0] for label in rule["risk_labels"]]
+        if name in ("금리", "환율", "금"):
+            risk_like = "상승" in direction_values and "하락" in direction_values
+            verdict = "부분 일치" if risk_like else "추가 확인"
+        elif name == "증시":
+            up_count = direction_values.count("상승")
+            down_count = direction_values.count("하락")
+            verdict = "방향 일치" if up_count >= 2 or down_count >= 2 else "혼조"
+        else:
+            verdict = "정성 검토"
+        related_titles = [
+            article.get("title", "")
+            for article in top_articles
+            if name in article.get("keyword_buckets", [])
+        ][:2]
+        items.append({
+            "theme": f"{name} 뉴스 {count}건",
+            "news_signal": " / ".join(related_titles) if related_titles else news_analysis.get("interpretation", ""),
+            "market_signal": market_signal,
+            "verdict": verdict,
+            "analysis": rule["analysis"],
+        })
+
+    if not items:
+        items.append({
+            "theme": "뉴스 키워드",
+            "news_signal": news_analysis.get("interpretation", ""),
+            "market_signal": " / ".join(metric_text(label) for label in ["NASDAQ 100", "Gold Futures", "USD/KRW"]),
+            "verdict": "검증 보류",
+            "analysis": "반복 키워드는 있으나 시장 지표와 직접 연결할 수 있는 주제가 부족합니다.",
+        })
+
+    verdicts = ", ".join(f"{item['theme']} {item['verdict']}" for item in items)
+    return {
+        "status": "교차검증 완료",
+        "headline": f"최근 뉴스 {recent_count}건을 시장 수치와 대조했습니다. 핵심 판정은 {verdicts}입니다.",
+        "items": items,
+        "source_urls": news_analysis.get("source_urls", []),
+    }
+
+
 def market_charts():
     return [
         {
@@ -632,6 +785,7 @@ def main():
             molit_info["molit"]["source_url"],
             molit_info["real_trade"]["source_url"],
         })
+    payload["news_market_check"] = build_news_market_check(news_analysis, payload["summary"].get("metrics", []))
 
     us_quotes = [quotes[key] for key in ("spx", "nasdaq", "dow") if key in quotes]
     gold = quotes.get("gold")
